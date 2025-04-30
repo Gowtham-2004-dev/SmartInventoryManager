@@ -1,4 +1,5 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, real, decimal, foreignKey } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -51,12 +52,12 @@ export const insertProductSchema = createInsertSchema(products).pick({
 // Sales schema
 export const sales = pgTable("sales", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: 'cascade' }),
   quantity: integer("quantity").notNull(),
   salePrice: decimal("sale_price", { precision: 10, scale: 2 }).notNull(),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   date: timestamp("date").defaultNow(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
 });
 
 export const insertSaleSchema = createInsertSchema(sales).pick({
@@ -70,12 +71,12 @@ export const insertSaleSchema = createInsertSchema(sales).pick({
 // Inventory Logs (for tracking inventory changes)
 export const inventoryLogs = pgTable("inventory_logs", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: 'cascade' }),
   type: text("type").notNull(), // IN, OUT, ADJUSTMENT
   quantity: integer("quantity").notNull(),
   reason: text("reason"),
   date: timestamp("date").defaultNow(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
 });
 
 export const insertInventoryLogSchema = createInsertSchema(inventoryLogs).pick({
@@ -89,7 +90,7 @@ export const insertInventoryLogSchema = createInsertSchema(inventoryLogs).pick({
 // ML Forecasts
 export const forecasts = pgTable("forecasts", {
   id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: 'cascade' }),
   predictedDemand: integer("predicted_demand").notNull(),
   confidenceLevel: real("confidence_level").notNull(),
   forDate: timestamp("for_date").notNull(),
@@ -102,6 +103,47 @@ export const insertForecastSchema = createInsertSchema(forecasts).pick({
   confidenceLevel: true,
   forDate: true,
 });
+
+// Define relations
+export const usersRelations = relations(users, ({ many }) => ({
+  sales: many(sales),
+  inventoryLogs: many(inventoryLogs),
+}));
+
+export const productsRelations = relations(products, ({ many }) => ({
+  sales: many(sales),
+  inventoryLogs: many(inventoryLogs),
+  forecasts: many(forecasts),
+}));
+
+export const salesRelations = relations(sales, ({ one }) => ({
+  product: one(products, {
+    fields: [sales.productId],
+    references: [products.id],
+  }),
+  user: one(users, {
+    fields: [sales.userId],
+    references: [users.id],
+  }),
+}));
+
+export const inventoryLogsRelations = relations(inventoryLogs, ({ one }) => ({
+  product: one(products, {
+    fields: [inventoryLogs.productId],
+    references: [products.id],
+  }),
+  user: one(users, {
+    fields: [inventoryLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const forecastsRelations = relations(forecasts, ({ one }) => ({
+  product: one(products, {
+    fields: [forecasts.productId],
+    references: [products.id],
+  }),
+}));
 
 // Type exports
 export type User = typeof users.$inferSelect;

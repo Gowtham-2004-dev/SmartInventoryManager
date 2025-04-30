@@ -1,0 +1,59 @@
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password TEXT NOT NULL,
+  business_name TEXT NOT NULL,
+  business_type TEXT DEFAULT 'Small Business',
+  role TEXT DEFAULT 'admin',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS products (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  sku TEXT NOT NULL UNIQUE,
+  description TEXT,
+  category TEXT NOT NULL,
+  price DECIMAL(10, 2) NOT NULL,
+  cost DECIMAL(10, 2) NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 0,
+  min_stock INTEGER NOT NULL DEFAULT 10,
+  supplier TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sales (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  quantity INTEGER NOT NULL,
+  sale_price DECIMAL(10, 2) NOT NULL,
+  total_amount DECIMAL(10, 2) NOT NULL,
+  date TIMESTAMP DEFAULT NOW(),
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS inventory_logs (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  reason TEXT,
+  date TIMESTAMP DEFAULT NOW(),
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS forecasts (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  predicted_demand INTEGER NOT NULL,
+  confidence_level REAL NOT NULL,
+  for_date TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "session" (
+  sid VARCHAR NOT NULL PRIMARY KEY,
+  sess JSON NOT NULL,
+  expire TIMESTAMP(6) NOT NULL
+);

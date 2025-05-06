@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
@@ -9,18 +9,126 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
-import { Bell, Mail, Phone, User, Building, Edit } from "lucide-react";
+import { Bell, Mail, Phone, User, Building, Edit, CheckCircle, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+
+// Notification settings type definition
+interface NotificationSettings {
+  phoneNumber: string;
+  emailNotifications: boolean;
+  smsNotifications: boolean;
+  lowStockAlerts: boolean;
+  salesReports: boolean;
+  forecastAlerts: boolean;
+}
 
 export default function SettingsPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { user } = useAuth();
+  const { toast } = useToast();
   
   // Settings state
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [smsNotifications, setSmSNotifications] = useState(false);
+  const [smsNotifications, setSmsNotifications] = useState(false);
   const [lowStockAlerts, setLowStockAlerts] = useState(true);
   const [salesReports, setSalesReports] = useState(true);
   const [forecastAlerts, setForecastAlerts] = useState(true);
+  const [testSmsStatus, setTestSmsStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  
+  // Fetch notification settings from API
+  const { data: settings, isLoading: isLoadingSettings } = useQuery({
+    queryKey: ['/api/user/notification-settings'],
+    enabled: !!user, // Only fetch if user is logged in
+  });
+  
+  // Update notification settings mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (newSettings: NotificationSettings) => {
+      return apiRequest('/api/user/notification-settings', {
+        method: 'PUT',
+        body: JSON.stringify(newSettings),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Settings Updated",
+        description: "Your notification settings have been saved successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update settings. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Test SMS notification mutation
+  const testSmsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/api/notifications/test-sms', {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      setTestSmsStatus("success");
+      toast({
+        title: "SMS Sent",
+        description: "A test SMS has been sent to your phone number.",
+      });
+    },
+    onError: (error: any) => {
+      setTestSmsStatus("error");
+      toast({
+        title: "SMS Failed",
+        description: error?.message || "Failed to send test SMS. Please check your phone number.",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // When settings are loaded from API, update state
+  useEffect(() => {
+    if (settings) {
+      setPhoneNumber(settings.phoneNumber || "");
+      setEmailNotifications(settings.emailNotifications);
+      setSmsNotifications(settings.smsNotifications);
+      setLowStockAlerts(settings.lowStockAlerts);
+      setSalesReports(settings.salesReports);
+      setForecastAlerts(settings.forecastAlerts);
+    }
+  }, [settings]);
+  
+  // Handle save notification settings
+  const handleSaveNotificationSettings = () => {
+    updateSettingsMutation.mutate({
+      phoneNumber,
+      emailNotifications,
+      smsNotifications,
+      lowStockAlerts,
+      salesReports,
+      forecastAlerts
+    });
+  };
+  
+  // Handle test SMS notification
+  const handleTestSms = () => {
+    if (!phoneNumber) {
+      toast({
+        title: "Phone Number Required",
+        description: "Please enter a valid phone number before testing SMS notifications.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setTestSmsStatus("sending");
+    testSmsMutation.mutate();
+  };
 
   return (
     <div className="min-h-screen flex flex-col">

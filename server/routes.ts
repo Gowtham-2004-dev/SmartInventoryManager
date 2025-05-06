@@ -293,7 +293,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate total sales for today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todaySales = sales.filter(sale => new Date(sale.date) >= today);
+      const todaySales = sales.filter(sale => {
+        if (!sale.date) return false;
+        const saleDate = new Date(sale.date);
+        return saleDate >= today;
+      });
       const todaySalesAmount = todaySales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
       
       // Calculate forecast accuracy
@@ -347,6 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Filter sales for this day
         const daySales = sales.filter(sale => {
+          if (!sale.date) return false;
           const saleDate = new Date(sale.date);
           return saleDate >= date && saleDate < nextDate;
         });
@@ -534,7 +539,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
     try {
-      const user = await storage.getUser(req.user.id);
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
       
       if (!user || !user.smsNotifications || !user.lowStockAlerts) {
         return res.status(400).json({ message: "SMS notifications or low stock alerts are disabled" });

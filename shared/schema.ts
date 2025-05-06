@@ -75,6 +75,72 @@ export const insertSaleSchema = createInsertSchema(sales).pick({
   userId: true,
 });
 
+// Suppliers schema
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  contactName: text("contact_name"),
+  phoneNumber: text("phone_number"),
+  email: text("email"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  pincode: text("pincode"),
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSupplierSchema = createInsertSchema(suppliers).pick({
+  name: true,
+  contactName: true,
+  phoneNumber: true,
+  email: true,
+  address: true,
+  city: true,
+  state: true,
+  pincode: true,
+  status: true,
+});
+
+// Purchase Orders schema
+export const purchaseOrders = pgTable("purchase_orders", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: 'cascade' }),
+  orderDate: timestamp("order_date").defaultNow(),
+  expectedDeliveryDate: timestamp("expected_delivery_date"),
+  status: text("status").default("pending"), // pending, delivered, cancelled
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  notes: text("notes"),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+});
+
+export const insertPurchaseOrderSchema = createInsertSchema(purchaseOrders).pick({
+  supplierId: true, 
+  expectedDeliveryDate: true,
+  status: true,
+  totalAmount: true,
+  notes: true,
+  userId: true,
+});
+
+// Purchase Order Items schema
+export const purchaseOrderItems = pgTable("purchase_order_items", {
+  id: serial("id").primaryKey(),
+  purchaseOrderId: integer("purchase_order_id").notNull().references(() => purchaseOrders.id, { onDelete: 'cascade' }),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: 'cascade' }),
+  quantity: integer("quantity").notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+});
+
+export const insertPurchaseOrderItemSchema = createInsertSchema(purchaseOrderItems).pick({
+  purchaseOrderId: true,
+  productId: true,
+  quantity: true,
+  unitPrice: true,
+  totalPrice: true,
+});
+
 // Inventory Logs (for tracking inventory changes)
 export const inventoryLogs = pgTable("inventory_logs", {
   id: serial("id").primaryKey(),

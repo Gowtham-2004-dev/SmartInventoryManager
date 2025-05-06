@@ -1,7 +1,8 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ml } from "./ml";
+import { notifications } from "./notifications";
 import { setupAuth } from "./auth";
 import { z } from "zod";
 import { 
@@ -9,6 +10,11 @@ import {
   insertSaleSchema, 
   insertInventoryLogSchema 
 } from "@shared/schema";
+
+// Helper function to get user ID from req.user (passport user)
+function getUserId(req: Request): number {
+  return (req.user as any)?.id;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes (/api/register, /api/login, /api/logout, /api/user)
@@ -116,9 +122,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
     try {
+      // Get the user ID - req.user is from the passport session
+      const userId = (req.user as any).id;
+      
       const validatedData = insertSaleSchema.parse({
         ...req.body,
-        userId: req.user.id
+        userId
       });
       
       // Check if product exists and has enough inventory
@@ -140,7 +149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: "OUT",
         quantity: validatedData.quantity,
         reason: "Sale",
-        userId: req.user.id
+        userId: userId
       });
       
       res.status(201).json(sale);
@@ -182,9 +191,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
     try {
+      const userId = getUserId(req);
+      
       const validatedData = insertInventoryLogSchema.parse({
         ...req.body,
-        userId: req.user.id
+        userId
       });
       
       // Check if product exists
@@ -389,6 +400,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
     } catch (error) {
       res.status(500).json({ message: "Error generating inventory health data" });
+    }
+  });
+
+  // Notification routes
+  app.get("/api/user/notification-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const settings = {
+        phoneNumber: user.phoneNumber || "",
+        emailNotifications: user.emailNotifications === 1,
+        smsNotifications: user.smsNotifications === 1,
+        lowStockAlerts: user.lowStockAlerts === 1,
+        salesReports: user.salesReports === 1,
+        forecastAlerts: user.forecastAlerts === 1
+      };
+      
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching notification settings" });
+    }
+  });
+  
+  app.put("/api/user/notification-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const schema = z.object({
+        phoneNumber: z.string().optional(),
+        emailNotifications: z.boolean().optional(),
+        smsNotifications: z.boolean().optional(),
+        lowStockAlerts: z.boolean().optional(),
+        salesReports: z.boolean().optional(),
+        forecastAlerts: z.boolean().optional()
+      });
+      
+      const validatedData = schema.parse(req.body);
+      
+      // Convert boolean values to integers for database storage
+      const updates: Record<string, any> = {};
+      
+      if (validatedData.phoneNumber !== undefined) {
+        updates.phoneNumber = validatedData.phoneNumber;
+      }
+      
+      if (validatedData.emailNotifications !== undefined) {
+        updates.emailNotifications = validatedData.emailNotifications ? 1 : 0;
+      }
+      
+      if (validatedData.smsNotifications !== undefined) {
+        updates.smsNotifications = validatedData.smsNotifications ? 1 : 0;
+      }
+      
+      if (validatedData.lowStockAlerts !== undefined) {
+        updates.lowStockAlerts = validatedData.lowStockAlerts ? 1 : 0;
+      }
+      
+      if (validatedData.salesReports !== undefined) {
+        updates.salesReports = validatedData.salesReports ? 1 : 0;
+      }
+      
+      if (validatedData.forecastAlerts !== undefined) {
+        updates.forecastAlerts = validatedData.forecastAlerts ? 1 : 0;
+      }
+      
+      const userId = getUserId(req);
+      const updatedUser = await storage.updateUser(userId, updates);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json({
+        phoneNumber: updatedUser.phoneNumber || "",
+        emailNotifications: updatedUser.emailNotifications === 1,
+        smsNotifications: updatedUser.smsNotifications === 1,
+        lowStockAlerts: updatedUser.lowStockAlerts === 1,
+        salesReports: updatedUser.salesReports === 1,
+        forecastAlerts: updatedUser.forecastAlerts === 1
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid notification settings", errors: error.errors });
+      } else {
+        res.status(500).json({ message: "Error updating notification settings" });
+      }
+    }
+  });
+  
+  // SMS test route
+  app.post("/api/notifications/test-sms", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      if (!user.phoneNumber) {
+        return res.status(400).json({ 
+          message: "Phone number not configured. Please update your profile with a valid phone number."
+        });
+      }
+      
+      // Send a test message
+      const success = await notifications.sendSMS(
+        user.id, 
+        "🔔 This is a test notification from SmartInventory. Your SMS notifications are working correctly!"
+      );
+      
+      if (success) {
+        res.json({ message: "Test SMS sent successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to send test SMS" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Error sending test SMS" });
+    }
+  });
+
+  // Integration with low stock alerts
+  app.post("/api/notifications/low-stock", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
+    try {
+      const user = await storage.getUser(req.user.id);
+      
+      if (!user || !user.smsNotifications || !user.lowStockAlerts) {
+        return res.status(400).json({ message: "SMS notifications or low stock alerts are disabled" });
+      }
+      
+      const lowStockProducts = await storage.getLowStockProducts();
+      
+      if (lowStockProducts.length === 0) {
+        return res.json({ message: "No low stock products to notify about" });
+      }
+      
+      // Limit to the first 5 products to avoid long messages
+      const productsToNotify = lowStockProducts.slice(0, 5);
+      let successCount = 0;
+      
+      for (const product of productsToNotify) {
+        const success = await notifications.sendLowStockAlert(
+          user.id,
+          product.name,
+          product.quantity
+        );
+        
+        if (success) {
+          successCount++;
+        }
+      }
+      
+      res.json({ 
+        message: `Sent ${successCount} out of ${productsToNotify.length} low stock notifications` 
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Error sending low stock notifications" });
     }
   });
 

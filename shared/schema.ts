@@ -11,6 +11,12 @@ export const users = pgTable("users", {
   businessName: text("business_name").notNull(),
   businessType: text("business_type").default("Small Business"),
   role: text("role").default("admin"),
+  phoneNumber: text("phone_number"),
+  emailNotifications: integer("email_notifications").default(1), // 1 for enabled, 0 for disabled
+  smsNotifications: integer("sms_notifications").default(0), // 0 for disabled, 1 for enabled
+  lowStockAlerts: integer("low_stock_alerts").default(1),
+  salesReports: integer("sales_reports").default(1),
+  forecastAlerts: integer("forecast_alerts").default(1),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -19,6 +25,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   businessName: true,
   businessType: true,
+  phoneNumber: true,
 });
 
 // Products schema

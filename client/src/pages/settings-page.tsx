@@ -47,9 +47,15 @@ export default function SettingsPage() {
   // Update notification settings mutation
   const updateSettingsMutation = useMutation({
     mutationFn: async (newSettings: NotificationSettings) => {
-      return apiRequest('/api/user/notification-settings', {
+      return await fetch('/api/user/notification-settings', {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(newSettings),
+      }).then(res => {
+        if (!res.ok) throw new Error('Failed to update settings');
+        return res.json();
       });
     },
     onSuccess: () => {
@@ -70,8 +76,14 @@ export default function SettingsPage() {
   // Test SMS notification mutation
   const testSmsMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/notifications/test-sms', {
+      return await fetch('/api/notifications/test-sms', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }).then(res => {
+        if (!res.ok) throw new Error('Failed to send test SMS');
+        return res.json();
       });
     },
     onSuccess: () => {
@@ -277,7 +289,7 @@ export default function SettingsPage() {
                         </div>
                         <Switch 
                           checked={smsNotifications} 
-                          onCheckedChange={setSmSNotifications} 
+                          onCheckedChange={setSmsNotifications} 
                         />
                       </div>
                     </div>

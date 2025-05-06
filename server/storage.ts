@@ -1,8 +1,10 @@
 import { 
   User, InsertUser, Product, InsertProduct, 
   Sale, InsertSale, InventoryLog, InsertInventoryLog,
-  Forecast, InsertForecast, users, products, sales, 
-  inventoryLogs, forecasts
+  Forecast, InsertForecast, Supplier, InsertSupplier,
+  PurchaseOrder, InsertPurchaseOrder, PurchaseOrderItem, InsertPurchaseOrderItem,
+  users, products, sales, inventoryLogs, forecasts,
+  suppliers, purchaseOrders, purchaseOrderItems
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";

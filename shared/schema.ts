@@ -181,12 +181,14 @@ export const insertForecastSchema = createInsertSchema(forecasts).pick({
 export const usersRelations = relations(users, ({ many }) => ({
   sales: many(sales),
   inventoryLogs: many(inventoryLogs),
+  purchaseOrders: many(purchaseOrders),
 }));
 
 export const productsRelations = relations(products, ({ many }) => ({
   sales: many(sales),
   inventoryLogs: many(inventoryLogs),
   forecasts: many(forecasts),
+  purchaseOrderItems: many(purchaseOrderItems),
 }));
 
 export const salesRelations = relations(sales, ({ one }) => ({
@@ -218,6 +220,33 @@ export const forecastsRelations = relations(forecasts, ({ one }) => ({
   }),
 }));
 
+export const suppliersRelations = relations(suppliers, ({ many }) => ({
+  purchaseOrders: many(purchaseOrders),
+}));
+
+export const purchaseOrdersRelations = relations(purchaseOrders, ({ one, many }) => ({
+  supplier: one(suppliers, {
+    fields: [purchaseOrders.supplierId],
+    references: [suppliers.id],
+  }),
+  user: one(users, {
+    fields: [purchaseOrders.userId],
+    references: [users.id],
+  }),
+  items: many(purchaseOrderItems),
+}));
+
+export const purchaseOrderItemsRelations = relations(purchaseOrderItems, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, {
+    fields: [purchaseOrderItems.purchaseOrderId],
+    references: [purchaseOrders.id],
+  }),
+  product: one(products, {
+    fields: [purchaseOrderItems.productId],
+    references: [products.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -227,6 +256,15 @@ export type InsertProduct = z.infer<typeof insertProductSchema>;
 
 export type Sale = typeof sales.$inferSelect;
 export type InsertSale = z.infer<typeof insertSaleSchema>;
+
+export type Supplier = typeof suppliers.$inferSelect;
+export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
+
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrder = z.infer<typeof insertPurchaseOrderSchema>;
+
+export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
+export type InsertPurchaseOrderItem = z.infer<typeof insertPurchaseOrderItemSchema>;
 
 export type InventoryLog = typeof inventoryLogs.$inferSelect;
 export type InsertInventoryLog = z.infer<typeof insertInventoryLogSchema>;

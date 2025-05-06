@@ -49,6 +49,24 @@ export interface IStorage {
   getForecastsByProduct(productId: number): Promise<Forecast[]>;
   createForecast(forecast: InsertForecast): Promise<Forecast>;
   
+  // Supplier operations
+  getSupplier(id: number): Promise<Supplier | undefined>;
+  getSuppliers(): Promise<Supplier[]>;
+  createSupplier(supplier: InsertSupplier): Promise<Supplier>;
+  updateSupplier(id: number, updates: Partial<Supplier>): Promise<Supplier | undefined>;
+  deleteSupplier(id: number): Promise<boolean>;
+  
+  // Purchase Order operations
+  getPurchaseOrder(id: number): Promise<PurchaseOrder | undefined>;
+  getPurchaseOrders(): Promise<PurchaseOrder[]>;
+  getPurchaseOrdersBySupplier(supplierId: number): Promise<PurchaseOrder[]>;
+  createPurchaseOrder(order: InsertPurchaseOrder): Promise<PurchaseOrder>;
+  updatePurchaseOrder(id: number, updates: Partial<PurchaseOrder>): Promise<PurchaseOrder | undefined>;
+  
+  // Purchase Order Item operations
+  getPurchaseOrderItems(orderId: number): Promise<PurchaseOrderItem[]>;
+  createPurchaseOrderItem(item: InsertPurchaseOrderItem): Promise<PurchaseOrderItem>;
+  
   // Session store
   sessionStore: any; // Store from express-session
 }
@@ -216,6 +234,77 @@ export class DatabaseStorage implements IStorage {
   async createForecast(insertForecast: InsertForecast): Promise<Forecast> {
     const [forecast] = await db.insert(forecasts).values(insertForecast).returning();
     return forecast;
+  }
+
+  // Supplier operations
+  async getSupplier(id: number): Promise<Supplier | undefined> {
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
+    return supplier;
+  }
+
+  async getSuppliers(): Promise<Supplier[]> {
+    return await db.select().from(suppliers);
+  }
+
+  async createSupplier(insertSupplier: InsertSupplier): Promise<Supplier> {
+    const [supplier] = await db.insert(suppliers).values(insertSupplier).returning();
+    return supplier;
+  }
+
+  async updateSupplier(id: number, updates: Partial<Supplier>): Promise<Supplier | undefined> {
+    const [updatedSupplier] = await db
+      .update(suppliers)
+      .set(updates)
+      .where(eq(suppliers.id, id))
+      .returning();
+      
+    return updatedSupplier;
+  }
+
+  async deleteSupplier(id: number): Promise<boolean> {
+    await db.delete(suppliers).where(eq(suppliers.id, id));
+    // Check if supplier still exists to determine if delete was successful
+    const supplier = await this.getSupplier(id);
+    return supplier === undefined;
+  }
+
+  // Purchase Order operations
+  async getPurchaseOrder(id: number): Promise<PurchaseOrder | undefined> {
+    const [purchaseOrder] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+    return purchaseOrder;
+  }
+
+  async getPurchaseOrders(): Promise<PurchaseOrder[]> {
+    return await db.select().from(purchaseOrders);
+  }
+
+  async getPurchaseOrdersBySupplier(supplierId: number): Promise<PurchaseOrder[]> {
+    return await db.select().from(purchaseOrders).where(eq(purchaseOrders.supplierId, supplierId));
+  }
+
+  async createPurchaseOrder(insertOrder: InsertPurchaseOrder): Promise<PurchaseOrder> {
+    const [order] = await db.insert(purchaseOrders).values(insertOrder).returning();
+    return order;
+  }
+
+  async updatePurchaseOrder(id: number, updates: Partial<PurchaseOrder>): Promise<PurchaseOrder | undefined> {
+    const [updatedOrder] = await db
+      .update(purchaseOrders)
+      .set(updates)
+      .where(eq(purchaseOrders.id, id))
+      .returning();
+      
+    return updatedOrder;
+  }
+
+  // Purchase Order Item operations
+  async getPurchaseOrderItems(orderId: number): Promise<PurchaseOrderItem[]> {
+    return await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, orderId));
+  }
+
+  async createPurchaseOrderItem(insertItem: InsertPurchaseOrderItem): Promise<PurchaseOrderItem> {
+    const [item] = await db.insert(purchaseOrderItems).values(insertItem).returning();
+    return item;
   }
 }
 

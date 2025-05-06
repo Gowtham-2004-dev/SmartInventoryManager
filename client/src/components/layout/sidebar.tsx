@@ -33,6 +33,7 @@ export function Sidebar({ className }: SidebarProps) {
   ];
 
   return (
+    
     <div className={cn("bg-gray-800 text-white w-64 flex-shrink-0 h-screen hidden md:flex flex-col", className)}>
       <div className="p-4 flex-1">
         <div className="flex items-center mb-6 mt-3">

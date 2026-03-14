@@ -7,9 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(value: number | string): string {
   const numValue = typeof value === 'string' ? parseFloat(value) : value;
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'INR',
+    maximumFractionDigits: 0,
   }).format(numValue);
 }
 

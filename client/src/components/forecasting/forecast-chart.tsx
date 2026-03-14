@@ -1,6 +1,14 @@
 import { Forecast } from "@shared/schema";
-import { Card, CardContent } from "@/components/ui/card";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import { useState, useMemo } from "react";
 import { formatShortDate } from "@/lib/utils";
 
@@ -9,136 +17,115 @@ interface ForecastChartProps {
   getProductName: (productId: number) => string;
 }
 
+const COLORS = [
+  "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899",
+  "#06B6D4", "#F97316", "#14B8A6", "#EF4444", "#6366F1",
+];
+
 export function ForecastChart({ forecasts, getProductName }: ForecastChartProps) {
   const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
 
-  // Group forecasts by date for chart data
+  // Get top products by max predicted demand
+  const topProductIds = useMemo(() => {
+    const maxByProduct: Record<number, number> = {};
+    for (const f of forecasts) {
+      maxByProduct[f.productId] = Math.max(maxByProduct[f.productId] ?? 0, f.predictedDemand);
+    }
+    return Object.entries(maxByProduct)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([id]) => Number(id));
+  }, [forecasts]);
+
+  const activeProductIds = selectedProducts.length > 0 ? selectedProducts : topProductIds.slice(0, 5);
+
+  // Build chart data: one row per unique forDate, columns per product
   const chartData = useMemo(() => {
-    // Get unique dates
-    const uniqueDates = Array.from(new Set(forecasts.map(f => f.forDate.toString().split('T')[0])));
-    
-    // If no products are selected, select the top 5 with highest demand
-    const productsToShow = selectedProducts.length > 0 
-      ? selectedProducts 
-      : forecasts
-          .sort((a, b) => b.predictedDemand - a.predictedDemand)
-          .slice(0, 5)
-          .map(f => f.productId);
-    
-    // Create chart data array
-    return uniqueDates.map(date => {
-      const dataPoint: Record<string, any> = { date };
-      
-      forecasts
-        .filter(f => f.forDate.toString().includes(date) && productsToShow.includes(f.productId))
-        .forEach(forecast => {
-          const productName = getProductName(forecast.productId);
-          dataPoint[productName] = forecast.predictedDemand;
-        });
-      
-      return dataPoint;
-    });
-  }, [forecasts, selectedProducts, getProductName]);
+    const dateMap: Record<string, Record<string, any>> = {};
 
-  // Get unique product IDs for legend
-  const uniqueProductIds = useMemo(() => 
-    Array.from(new Set(forecasts.map(f => f.productId)))
-      .sort((a, b) => {
-        const productAForecasts = forecasts.filter(f => f.productId === a);
-        const productBForecasts = forecasts.filter(f => f.productId === b);
-        
-        const maxDemandA = Math.max(...productAForecasts.map(f => f.predictedDemand));
-        const maxDemandB = Math.max(...productBForecasts.map(f => f.predictedDemand));
-        
-        return maxDemandB - maxDemandA;
-      })
-      .slice(0, 10), // Limit to top 10 products
-  [forecasts]);
+    for (const f of forecasts) {
+      if (!activeProductIds.includes(f.productId)) continue;
 
-  // Toggle product selection
-  const toggleProductSelection = (productId: number) => {
-    setSelectedProducts(prev => 
-      prev.includes(productId)
-        ? prev.filter(id => id !== productId)
-        : [...prev, productId]
+      const rawDate = f.forDate ? String(f.forDate) : "";
+      const dateKey = rawDate.split("T")[0];
+      if (!dateKey) continue;
+
+      if (!dateMap[dateKey]) dateMap[dateKey] = { date: dateKey };
+      const name = getProductName(f.productId);
+      dateMap[dateKey][name] = f.predictedDemand;
+    }
+
+    return Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+  }, [forecasts, activeProductIds, getProductName]);
+
+  const toggleProduct = (id: number) => {
+    setSelectedProducts(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
     );
   };
 
-  // Generate colors for each product
-  const productColors = [
-    "#3B82F6", // blue
-    "#10B981", // green
-    "#F59E0B", // amber
-    "#8B5CF6", // violet
-    "#EC4899", // pink
-    "#06B6D4", // cyan
-    "#F97316", // orange
-    "#14B8A6", // teal
-    "#EF4444", // red
-    "#6366F1", // indigo
-  ];
+  if (!forecasts.length) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-500 text-sm">
+        No forecast data. Click "Update Forecasts" to generate predictions.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={chartData}
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-          >
+          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis 
-              dataKey="date" 
-              tickFormatter={(date) => formatShortDate(date)} 
+            <XAxis
+              dataKey="date"
+              tickFormatter={(d) => formatShortDate(d)}
               stroke="#888888"
-              fontSize={12}
+              fontSize={11}
             />
-            <YAxis stroke="#888888" fontSize={12} />
-            <Tooltip 
-              formatter={(value, name) => [value, name]}
-              labelFormatter={(label) => formatShortDate(label)}
+            <YAxis stroke="#888888" fontSize={11} />
+            <Tooltip
+              formatter={(value, name) => [value + " units", name]}
+              labelFormatter={(label) => `Forecast: ${formatShortDate(label)}`}
             />
             <Legend />
-            
-            {uniqueProductIds.map((productId, index) => {
-              const productName = getProductName(productId);
-              const isSelected = selectedProducts.length === 0 || selectedProducts.includes(productId);
-              const color = productColors[index % productColors.length];
-              
-              return isSelected && (
-                <Line
-                  key={productId}
-                  type="monotone"
-                  dataKey={productName}
-                  stroke={color}
-                  strokeWidth={2}
-                  dot={{ r: 4, strokeWidth: 2 }}
-                  activeDot={{ r: 6, strokeWidth: 2 }}
-                />
-              );
-            })}
+            {activeProductIds.map((productId, index) => (
+              <Line
+                key={productId}
+                type="monotone"
+                dataKey={getProductName(productId)}
+                stroke={COLORS[index % COLORS.length]}
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                activeDot={{ r: 5 }}
+                connectNulls
+              />
+            ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
-      
+
+      {/* Product filter pills */}
       <div className="flex flex-wrap gap-2">
-        {uniqueProductIds.map((productId, index) => (
-          <div 
-            key={productId}
-            onClick={() => toggleProductSelection(productId)}
-            className={`cursor-pointer px-3 py-1 text-xs rounded-full border flex items-center gap-2 ${
-              selectedProducts.length === 0 || selectedProducts.includes(productId)
-                ? 'bg-gray-100 border-gray-300'
-                : 'bg-white border-gray-200 opacity-60'
-            }`}
-          >
-            <div 
-              className="w-3 h-3 rounded-full" 
-              style={{ backgroundColor: productColors[index % productColors.length] }}
-            />
-            <span>{getProductName(productId)}</span>
-          </div>
-        ))}
+        {topProductIds.map((productId, index) => {
+          const isActive = activeProductIds.includes(productId);
+          return (
+            <button
+              key={productId}
+              onClick={() => toggleProduct(productId)}
+              className={`px-3 py-1 text-xs rounded-full border flex items-center gap-1.5 transition-opacity ${
+                isActive ? "bg-gray-100 border-gray-300" : "bg-white border-gray-200 opacity-50"
+              }`}
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: COLORS[index % COLORS.length] }}
+              />
+              {getProductName(productId)}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

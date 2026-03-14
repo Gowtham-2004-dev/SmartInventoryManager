@@ -333,7 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/analytics/sales-chart", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
-    const days = req.query.days ? Number(req.query.days) : 7;
+    const days = req.query.days ? Number(req.query.days) : 10;
     
     try {
       const sales = await storage.getSales();
@@ -341,6 +341,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generate data for each day in the period
       const endDate = new Date();
+      const dailyAmounts: number[] = [];
+
       for (let i = days - 1; i >= 0; i--) {
         const date = new Date();
         date.setDate(endDate.getDate() - i);
@@ -357,11 +359,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         const totalAmount = daySales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
-        
+        dailyAmounts.push(totalAmount);
+
         chartData.push({
           date: date.toISOString().split('T')[0],
-          amount: totalAmount
+          amount: totalAmount,
+          variation: 0 // will be filled below
         });
+      }
+
+      // Calculate day-over-day variation
+      for (let i = 1; i < chartData.length; i++) {
+        const prev = dailyAmounts[i - 1];
+        const curr = dailyAmounts[i];
+        chartData[i].variation = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : 0;
       }
       
       res.json(chartData);

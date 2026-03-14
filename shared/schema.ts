@@ -247,6 +247,22 @@ export const purchaseOrderItemsRelations = relations(purchaseOrderItems, ({ one 
   }),
 }));
 
+// Email settings schema
+export const emailSettings = pgTable("email_settings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  smtpHost: text("smtp_host").default("smtp.gmail.com"),
+  smtpPort: integer("smtp_port").default(587),
+  smtpUser: text("smtp_user"),
+  smtpPass: text("smtp_pass"),
+  fromEmail: text("from_email"),
+  fromName: text("from_name").default("SmartInventory"),
+});
+
+export const insertEmailSettingsSchema = createInsertSchema(emailSettings).omit({ id: true });
+export type EmailSettings = typeof emailSettings.$inferSelect;
+export type InsertEmailSettings = z.infer<typeof insertEmailSettingsSchema>;
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

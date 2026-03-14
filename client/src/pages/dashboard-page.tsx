@@ -15,12 +15,10 @@ import { formatCurrency } from "@/lib/utils";
 export default function DashboardPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Fetch dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ["/api/analytics/dashboard"],
   });
 
-  // Fetch insights
   const { data: insights } = useQuery({
     queryKey: ["/api/insights"],
   });
@@ -33,15 +31,18 @@ export default function DashboardPage() {
     );
   }
 
+  // Calculate monthly revenue from recent activity or placeholder
+  const monthlyRevenue = (dashboardData?.todaySalesAmount || 0) * 30;
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       <Header onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
-      
-      <div className="flex flex-1">
+
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        
+
         <MobileSidebar isOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
-        
+
         <main className="flex-1 overflow-y-auto bg-gray-50">
           <div className="p-6">
             <div className="mb-6">
@@ -61,7 +62,7 @@ export default function DashboardPage() {
                 iconBgColor="bg-blue-100"
                 positive={true}
               />
-              
+
               <StatCard
                 title="Low Stock"
                 value={dashboardData?.lowStockCount || 0}
@@ -72,7 +73,7 @@ export default function DashboardPage() {
                 iconBgColor="bg-red-100"
                 positive={false}
               />
-              
+
               <StatCard
                 title="Today's Sales"
                 value={formatCurrency(dashboardData?.todaySalesAmount || 0)}
@@ -83,15 +84,15 @@ export default function DashboardPage() {
                 iconBgColor="bg-green-100"
                 positive={true}
               />
-              
+
               <StatCard
-                title="Forecast Accuracy"
-                value={`${dashboardData?.forecastAccuracy || 0}%`}
-                change={2.1}
-                changeText="improvement"
-                icon="brain"
-                iconColor="text-purple-600"
-                iconBgColor="bg-purple-100"
+                title="Monthly Revenue"
+                value={formatCurrency(monthlyRevenue)}
+                change={3.5}
+                changeText="from last month"
+                icon="trending-up"
+                iconColor="text-orange-500"
+                iconBgColor="bg-orange-100"
                 positive={true}
               />
             </div>

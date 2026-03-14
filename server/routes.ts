@@ -5,6 +5,7 @@ import { ml } from "./ml";
 import { notifications } from "./notifications";
 import { setupAuth } from "./auth";
 import { z } from "zod";
+import { getEmailSettings, saveEmailSettings, sendOrderEmail } from "./email";
 import { 
   insertProductSchema, 
   insertSaleSchema, 
@@ -584,6 +585,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Error sending low stock notifications" });
+    }
+  });
+
+  // Email settings routes
+  app.get("/api/email-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = getUserId(req);
+      const settings = await getEmailSettings(userId);
+      if (!settings) return res.json({ smtpHost: "smtp.gmail.com", smtpPort: 587, smtpUser: "", smtpPass: "", fromEmail: "", fromName: "SmartInventory" });
+      // Mask password in response
+      res.json({ ...settings, smtpPass: settings.smtpPass ? "••••••••" : "" });
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching email settings" });
+    }
+  });
+
+  app.put("/api/email-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = getUserId(req);
+      const schema = z.object({
+        smtpHost: z.string().min(1),
+        smtpPort: z.number().int().min(1).max(65535),
+        smtpUser: z.string().min(1),
+        smtpPass: z.string(),
+        fromEmail: z.string().email(),
+        fromName: z.string().min(1),
+      });
+      const data = schema.parse(req.body);
+      // If password is masked placeholder, keep existing password
+      if (data.smtpPass === "••••••••") {
+        const existing = await getEmailSettings(userId);
+        data.smtpPass = existing?.smtpPass || "";
+      }
+      const saved = await saveEmailSettings(userId, data);
+      res.json({ ...saved, smtpPass: "••••••••" });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      res.status(500).json({ message: "Error saving email settings" });
+    }
+  });
+
+  // Place order and send email to supplier
+  app.post("/api/orders/place", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      const schema = z.object({
+        productId: z.number().int(),
+        supplierId: z.number().int().optional(),
+        quantity: z.number().int().min(1),
+        notes: z.string().optional(),
+      });
+      const { productId, supplierId, quantity, notes } = schema.parse(req.body);
+
+      const product = await storage.getProduct(productId);
+      if (!product) return res.status(404).json({ message: "Product not found" });
+
+      // Find the supplier — either by supplierId or by product.supplier name
+      const suppliers = await storage.getSuppliers();
+      let supplier = supplierId ? suppliers.find(s => s.id === supplierId) : undefined;
+      if (!supplier && product.supplier) {
+        supplier = suppliers.find(s => s.name.toLowerCase().includes(product.supplier!.toLowerCase()));
+      }
+
+      if (!supplier?.email) {
+        return res.status(400).json({ message: "Supplier email not found. Please update the supplier's email address." });
+      }
+
+      const emailResult = await sendOrderEmail(userId, {
+        supplierName: supplier.name,
+        supplierEmail: supplier.email,
+        productName: product.name,
+        productSku: product.sku,
+        quantity,
+        notes,
+        businessName: user?.businessName || "Kirana Store",
+      });
+
+      res.json(emailResult);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      res.status(500).json({ message: "Error placing order" });
     }
   });
 

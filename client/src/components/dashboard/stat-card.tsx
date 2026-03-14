@@ -34,6 +34,8 @@ export function StatCard({
         return <ShoppingCart className={cn("text-xl", iconColor)} />;
       case "brain":
         return <Brain className={cn("text-xl", iconColor)} />;
+      case "trending-up":
+        return <TrendingUp className={cn("text-xl", iconColor)} />;
       default:
         return <Box className={cn("text-xl", iconColor)} />;
     }

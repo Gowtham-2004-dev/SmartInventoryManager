@@ -15,28 +15,60 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function SalesPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showAddSaleDialog, setShowAddSaleDialog] = useState(false);
 
-  // Fetch sales
-  const { data: sales, isLoading, refetch } = useQuery({
+  const { data: sales, isLoading, refetch } = useQuery<any[]>({
     queryKey: ["/api/sales"],
   });
 
-  // Calculate total sales amount
-  const totalSales = sales?.reduce((sum, sale) => sum + Number(sale.totalAmount), 0) || 0;
+  const { data: products } = useQuery<any[]>({
+    queryKey: ["/api/products"],
+  });
 
-  // Calculate total items sold
+  const totalSales = sales?.reduce((sum, sale) => sum + Number(sale.totalAmount), 0) || 0;
   const totalItems = sales?.reduce((sum, sale) => sum + Number(sale.quantity), 0) || 0;
 
-  // Get today's sales
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todaySales = sales?.filter(sale => new Date(sale.date) >= today) || [];
   const todaySalesAmount = todaySales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0) || 0;
+
+  const getProductName = (productId: number) => {
+    const p = products?.find(p => p.id === productId);
+    return p ? p.name : `Product #${productId}`;
+  };
+
+  const handleExport = () => {
+    if (!sales || sales.length === 0) return;
+
+    const headers = ["Date", "Product", "Quantity", "Unit Price (₹)", "Total Amount (₹)"];
+    const rows = sales.map(sale => [
+      formatDate(sale.date),
+      getProductName(sale.productId),
+      sale.quantity,
+      Number(sale.salePrice).toFixed(2),
+      Number(sale.totalAmount).toFixed(2),
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `sales_report_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -44,7 +76,6 @@ export default function SalesPage() {
       
       <div className="flex flex-1">
         <Sidebar />
-        
         <MobileSidebar isOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
         
         <main className="flex-1 overflow-y-auto bg-gray-50">
@@ -55,9 +86,14 @@ export default function SalesPage() {
                 <p className="text-gray-600">Record and track your sales transactions.</p>
               </div>
               <div className="flex gap-3">
-                <Button variant="outline" className="flex gap-2 items-center">
+                <Button
+                  variant="outline"
+                  className="flex gap-2 items-center"
+                  onClick={handleExport}
+                  disabled={!sales || sales.length === 0}
+                >
                   <FileDown className="h-4 w-4" />
-                  Export
+                  Export CSV
                 </Button>
                 <Button className="bg-primary" onClick={() => setShowAddSaleDialog(true)}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -66,29 +102,26 @@ export default function SalesPage() {
               </div>
             </div>
             
-            {/* Sales Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <Card>
                 <CardContent className="p-5">
-                  <p className="text-sm text-gray-500">Total Sales</p>
+                  <p className="text-sm text-gray-500">Total Revenue</p>
                   <h3 className="text-2xl font-bold mt-1">{formatCurrency(totalSales)}</h3>
-                  <p className="text-sm text-gray-500 mt-2">All time</p>
+                  <p className="text-sm text-gray-500 mt-2">All time · {sales?.length || 0} transactions</p>
                 </CardContent>
               </Card>
-              
               <Card>
                 <CardContent className="p-5">
                   <p className="text-sm text-gray-500">Today's Sales</p>
                   <h3 className="text-2xl font-bold mt-1">{formatCurrency(todaySalesAmount)}</h3>
-                  <p className="text-sm text-gray-500 mt-2">{todaySales.length} transactions</p>
+                  <p className="text-sm text-gray-500 mt-2">{todaySales.length} transactions today</p>
                 </CardContent>
               </Card>
-              
               <Card>
                 <CardContent className="p-5">
                   <p className="text-sm text-gray-500">Total Items Sold</p>
-                  <h3 className="text-2xl font-bold mt-1">{totalItems}</h3>
-                  <p className="text-sm text-gray-500 mt-2">{sales?.length || 0} transactions</p>
+                  <h3 className="text-2xl font-bold mt-1">{totalItems.toLocaleString("en-IN")}</h3>
+                  <p className="text-sm text-gray-500 mt-2">Units across all sales</p>
                 </CardContent>
               </Card>
             </div>

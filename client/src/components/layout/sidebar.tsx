@@ -47,16 +47,17 @@ export function Sidebar({ className }: SidebarProps) {
           <ul className="space-y-1">
             {menuItems.map((item) => (
               <li key={item.path}>
-                <Link href={item.path}>
-                  <a className={cn(
+                <Link
+                  href={item.path}
+                  className={cn(
                     "flex items-center px-4 py-3 rounded-lg transition-colors hover:bg-gray-700",
                     location === item.path ? "bg-gray-900 text-white" : "text-gray-300"
-                  )}>
-                    <span className={cn("w-5 mr-3", location === item.path ? "text-primary" : "text-gray-400")}>
-                      {item.icon}
-                    </span>
-                    <span>{item.name}</span>
-                  </a>
+                  )}
+                >
+                  <span className={cn("w-5 mr-3", location === item.path ? "text-primary" : "text-gray-400")}>
+                    {item.icon}
+                  </span>
+                  <span>{item.name}</span>
                 </Link>
               </li>
             ))}

@@ -100,14 +100,18 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newSettings),
       });
-      if (!res.ok) throw new Error("Failed to update settings");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to update settings");
+      }
       return res.json();
     },
     onSuccess: () => {
       toast({ title: "Settings Updated", description: "Notification settings saved successfully." });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/notification-settings"] });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update settings.", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update settings.", variant: "destructive" });
     },
   });
 
@@ -127,15 +131,30 @@ export default function SettingsPage() {
     },
   });
 
-  // Test SMS
+  // Test SMS — first saves the phone number, then triggers the test
   const testSmsMutation = useMutation({
     mutationFn: async () => {
+      // Save phone number first so the server can read it from DB
+      const saveRes = await fetch("/api/user/notification-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber, smsNotifications: true }),
+      });
+      if (!saveRes.ok) {
+        const d = await saveRes.json().catch(() => ({}));
+        throw new Error(d.message || "Failed to save phone number");
+      }
+      // Now send the test SMS
       const res = await fetch("/api/notifications/test-sms", { method: "POST", headers: { "Content-Type": "application/json" } });
-      if (!res.ok) throw new Error("Failed to send test SMS");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to send test SMS");
+      }
       return res.json();
     },
     onSuccess: () => {
       toast({ title: "SMS Sent", description: "Test SMS sent to your phone number." });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/notification-settings"] });
     },
     onError: (err: any) => {
       toast({ title: "SMS Failed", description: err?.message || "Failed to send test SMS.", variant: "destructive" });

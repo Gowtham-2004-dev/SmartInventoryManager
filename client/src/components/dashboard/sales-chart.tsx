@@ -20,7 +20,12 @@ export function SalesChart() {
   const [timeRange, setTimeRange] = useState("10");
 
   const { data: chartData, isLoading } = useQuery<any[]>({
-    queryKey: ["/api/analytics/sales-chart", { days: timeRange }],
+    queryKey: ["/api/analytics/sales-chart", timeRange],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/sales-chart?days=${timeRange}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch chart data");
+      return res.json();
+    },
   });
 
   const totalSales = chartData?.reduce((s, d) => s + d.amount, 0) ?? 0;

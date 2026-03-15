@@ -107,6 +107,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Supplier CRUD routes
+  app.get("/api/suppliers", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const data = await storage.getSuppliers();
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching suppliers" });
+    }
+  });
+
+  app.post("/api/suppliers", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { insertSupplierSchema } = await import("@shared/schema");
+      const validated = insertSupplierSchema.parse(req.body);
+      const supplier = await storage.createSupplier(validated);
+      res.status(201).json(supplier);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      res.status(500).json({ message: "Error creating supplier" });
+    }
+  });
+
+  app.put("/api/suppliers/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid supplier ID" });
+    try {
+      const supplier = await storage.updateSupplier(id, req.body);
+      if (!supplier) return res.status(404).json({ message: "Supplier not found" });
+      res.json(supplier);
+    } catch (error) {
+      res.status(500).json({ message: "Error updating supplier" });
+    }
+  });
+
+  app.delete("/api/suppliers/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid supplier ID" });
+    try {
+      const success = await storage.deleteSupplier(id);
+      if (!success) return res.status(404).json({ message: "Supplier not found" });
+      res.sendStatus(204);
+    } catch (error) {
+      res.status(500).json({ message: "Error deleting supplier" });
+    }
+  });
+
   // Sales routes
   app.get("/api/sales", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
